@@ -1,6 +1,7 @@
 from keras.layers import Dense, Input
 from keras.models import Model
 from keras.optimizers import Adam
+from keras.model import get_weights, set_weights
 import numpy as np
 import random
 
@@ -34,8 +35,15 @@ class Agent:
         n_outputs = self.n_actions
         self.Q_NN = self._build_model(n_inputs, n_outputs)
         self.Q_NN.compile(loss='mse', optimizer=Adam(lr=self.lr))
+
+        self.Q_NN_sol = self._build_model(n_inputs, n_outputs)
+        # self.Q_NN_sol.compile(loss='mse', optimizer=Adam(lr=self.lr))
+
         # TODO: save_weights
         # TODO: load_weights
+
+    def update_weights(self):
+        self.Q_NN_sol.set_weights(self.Q_NN.get_weights())
 
     def _build_model(self, n_inputs, n_outputs):
         inputs = Input(shape=(n_inputs, ), name='state')
@@ -82,7 +90,7 @@ class Agent:
 
     def learn(self, state, action, reward, next_state):
         q_values = self.Q_NN.predict(self._one_hot_encoded(state))[0]
-        q2 = reward + self.y * np.max(self.Q_NN.predict(self._one_hot_encoded(next_state))[0])
+        q2 = reward + self.y * np.max(self.Q_NN_sol.predict(self._one_hot_encoded(next_state))[0])
 
         q_values[action] = q2
 
@@ -113,6 +121,8 @@ if __name__ == "__main__":
     env = Env(n_agents)
     agents = [Agent(env.action_space.size, env.world.size) for _ in range(n_agents)]
 
+    update_step = 20
+
     Gs = []  # Save total reward for each episode  # TODO: multiple agents
     for i in range(n_episodes):
         # initialization
@@ -121,6 +131,10 @@ if __name__ == "__main__":
 
         for n, agent in enumerate(agents):
             for j in range(n_steps):
+
+                if n_steps % update_step == 0:
+                    agent.update_weights()
+
                 print('(Episode: %5d, Agent: %5d, Steps: %5d)' % (i, n, j), end='\r')
 
                 action = agent.get_action(i, states[n])
